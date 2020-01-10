@@ -1,7 +1,7 @@
 Summary: Utilities based around the yum package manager
 Name: yum-utils
 Version: 1.1.30
-Release: 41%{?dist}
+Release: 42%{?dist}
 License: GPLv2+
 Group: Development/Tools
 Source: http://yum.baseurl.org/download/yum-utils/%{name}-%{version}.tar.gz
@@ -81,6 +81,7 @@ Patch74: BZ-1272025-filter-duplicate-pkgs-from-security-count.patch
 
 # RHEL-6.10
 Patch80: BZ-1496340-package-cleanup-dont-remove-required.patch
+Patch81: BZ-1600619-reposync-prevent-path-traversal.patch
 
 
 URL: http://yum.baseurl.org/download/yum-utils/
@@ -522,6 +523,7 @@ This plugin touches rpmdb files to work around overlayfs issues.
 
 # RHEL-6.10
 %patch80 -p1
+%patch81 -p1
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -822,6 +824,10 @@ fi
 %{_mandir}/man1/yum-ovl.1.*
 
 %changelog
+* Tue Jul 24 2018 Michal Domonkos <mdomonko@redhat.com> -1.1.30-42
+- reposync: prevent path traversal.
+- Resolves: bug#1600619
+
 * Wed Feb 21 2018 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-41
 - package-cleanup: don't remove required dupes.
 - Resolves: bug#1496340
