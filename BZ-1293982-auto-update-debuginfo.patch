@@ -1,0 +1,12 @@
+diff -up yum-utils-1.1.30/plugins/auto-update-debuginfo/auto-update-debuginfo.py.old yum-utils-1.1.30/plugins/auto-update-debuginfo/auto-update-debuginfo.py
+--- yum-utils-1.1.30/plugins/auto-update-debuginfo/auto-update-debuginfo.py.old	2016-10-17 14:39:31.493665383 +0200
++++ yum-utils-1.1.30/plugins/auto-update-debuginfo/auto-update-debuginfo.py	2016-10-17 14:40:09.528866904 +0200
+@@ -38,7 +38,7 @@ def _check_man_disable(mdrs, di):
+ def enable_debuginfo_repos(yb, conduit):
+     mdrs = set()
+     opts, args = conduit.getCmdLine()
+-    if opts is not None:
++    if hasattr(opts, 'repos'):
+         for opt, repoexp in opts.repos:
+             if opt == '--disablerepo':
+                 mdrs.add(repoexp)

@@ -1,0 +1,70 @@
+diff -up yum-utils-1.1.30/plugins/verify/verify.py.old yum-utils-1.1.30/plugins/verify/verify.py
+--- yum-utils-1.1.30/plugins/verify/verify.py.old	2016-10-17 18:07:26.235376085 +0200
++++ yum-utils-1.1.30/plugins/verify/verify.py	2016-10-17 18:09:35.764580041 +0200
+@@ -287,6 +287,7 @@ Verify packages and display data on bad
+         
+     def show_data(self, base, msg, pkgs, name):
+         done = False
++        problem_found = False
+         mcb = lambda x: base.matchcallback(x, [])
+         for (pkg, results) in self.filter_data(msg, pkgs):
+             if not done:
+@@ -310,11 +311,13 @@ Verify packages and display data on bad
+                     (hib, hie) = ("", "")
+                 done_prob = False
+                 for problem in sorted(results[fname]):
++                    problem_found = True
+                     if not done_prob and problem.file_types:
+                         tags = ", ".join(problem.file_types)
+                         msg("    Tags: " + hib + tags + hie)
+                     self.show_problem(base, msg, problem, done_prob)
+                     done_prob = True
++        return problem_found
+ 
+     def doCommand(self, base, basecmd, extcmds):
+         global _verify_configs
+@@ -360,10 +363,10 @@ Verify packages and display data on bad
+             # nevr() match
+             
+         ypl = base.returnPkgLists(subgroup + extcmds)
+-        self.show_data(base, msg, ypl.installed, 'Installed Packages')
+-        self.show_data(base, msg, ypl.extras,    'Extra Packages')
++        result = (self.show_data(base, msg, ypl.installed, 'Installed Packages')
++                  or self.show_data(base, msg, ypl.extras,    'Extra Packages'))
+ 
+-        return 0, [basecmd + ' done']
++        return result, [basecmd + ' done']
+ 
+     def needTs(self, base, basecmd, extcmds):
+         if not len(extcmds) or extcmds[0] != 'extras':
+diff -up yum-utils-1.1.30/docs/yum-verify.1.old yum-utils-1.1.30/docs/yum-verify.1
+--- yum-utils-1.1.30/docs/yum-verify.1.old	2016-10-31 10:43:03.158960130 +0100
++++ yum-utils-1.1.30/docs/yum-verify.1	2016-10-31 10:51:19.149826725 +0100
+@@ -6,7 +6,7 @@ yum verify plugin
+ \fByum\fP [options] verify [package ...]
+ .SH "DESCRIPTION"
+ .PP 
+-This plugin extends \fByum\fP with some commands that give verification information on the installed system, much like rpm -V. You can change how the verification is done and which files it applies to.
++This plugin extends \fByum\fP with some commands that give verification information on the installed system, much like rpm -V. You can change how the verification is done and which files it applies to. In case any mismatches are found, the exit status is set to 1.
+ .PP 
+ added yum \fIcommand\fPs are:
+ .br 
+@@ -17,7 +17,7 @@ added yum \fIcommand\fPs are:
+ .I \fR * verify-all
+ .br 
+ .PP 
+-all of which take the same arguments as the list yum command, obviously you can
++all of which take the same arguments as the list yum command. You can
+ only verify packages that are installed on the system.
+ .PP
+ .br 
+@@ -29,8 +29,7 @@ output. It removes all false matches due
+ configuration files by default.
+ .IP
+ .IP "\fBverify-rpm\fP"
+-Is meant to be 100% compatible with rpm -V output, and any differences should be
+-considered as bugs.
++Does the same checks as rpm -V.
+ .IP
+ .IP "\fBverify-all\fP"
+ Is used to list all the differences, including some that rpm itself will ignore.

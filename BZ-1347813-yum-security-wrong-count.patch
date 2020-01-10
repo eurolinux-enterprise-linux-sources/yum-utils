@@ -1,0 +1,26 @@
+diff -up yum-utils-1.1.30/plugins/security/security.py.old yum-utils-1.1.30/plugins/security/security.py
+--- yum-utils-1.1.30/plugins/security/security.py.old	2016-10-17 14:04:55.190399410 +0200
++++ yum-utils-1.1.30/plugins/security/security.py	2016-10-17 14:07:38.369412558 +0200
+@@ -747,7 +747,6 @@ def exclude_hook(conduit):
+     pkgs = conduit.getPackages()
+     name2tup = _get_name2oldpkgtup(conduit._base)
+     
+-    cnt = 0
+     pkgs_to_del = []
+     for pkg in pkgs:
+         name = pkg.name
+@@ -755,11 +754,13 @@ def exclude_hook(conduit):
+             not ysp_should_keep_pkg(opts, name2tup[name], md_info, used_map)):
+             pkgs_to_del.append(pkg.name)
+             continue
+-        cnt += 1
+     if pkgs_to_del:
+         for p in conduit._base.doPackageLists(pkgnarrow='available', patterns=pkgs_to_del, showdups=True).available:
+             ysp_del_pkg(p)
+ 
++    cnt = len(conduit._base.doPackageLists(pkgnarrow='updates').updates) + \
++          len(conduit._base.doPackageLists(pkgnarrow='obsoletes').obsoletes)
++
+     ysp_chk_used_map(used_map, lambda x: conduit.error(2, x))
+     if cnt:
+         conduit.info(2, '%d package(s) needed for security, out of %d available' % (cnt, tot))

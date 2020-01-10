@@ -1,0 +1,31 @@
+diff -up yum-utils-1.1.30/plugins/security/security.py.old yum-utils-1.1.30/plugins/security/security.py
+--- yum-utils-1.1.30/plugins/security/security.py.old	2016-10-31 10:36:26.725059523 +0100
++++ yum-utils-1.1.30/plugins/security/security.py	2016-10-31 10:37:15.109071007 +0100
+@@ -758,8 +758,8 @@ def exclude_hook(conduit):
+         for p in conduit._base.doPackageLists(pkgnarrow='available', patterns=pkgs_to_del, showdups=True).available:
+             ysp_del_pkg(p)
+ 
+-    cnt = len(conduit._base.doPackageLists(pkgnarrow='updates').updates) + \
+-          len(conduit._base.doPackageLists(pkgnarrow='obsoletes').obsoletes)
++    cnt = len(set(conduit._base.doPackageLists(pkgnarrow='updates').updates + \
++                  conduit._base.doPackageLists(pkgnarrow='obsoletes').obsoletes))
+ 
+     ysp_chk_used_map(used_map, lambda x: conduit.error(2, x))
+     if cnt:
+diff -up yum-utils-1.1.30/plugins/security/security.py.old yum-utils-1.1.30/plugins/security/security.py
+--- yum-utils-1.1.30/plugins/security/security.py.old	2016-11-25 14:29:04.570025984 +0100
++++ yum-utils-1.1.30/plugins/security/security.py	2016-11-25 14:29:49.037098718 +0100
+@@ -738,11 +738,8 @@ def exclude_hook(conduit):
+     opts.sec_cmds = []
+     used_map = ysp_gen_used_map(opts)
+ 
+-    upds = conduit._base.doPackageLists(pkgnarrow='updates')
+-    tot = len(upds.updates)
+-    # In theory we don't need to do this in some cases, but meh.
+-    upds = conduit._base.doPackageLists(pkgnarrow='obsoletes')
+-    tot += len(upds.obsoletes)
++    tot = len(set(conduit._base.doPackageLists(pkgnarrow='updates').updates + \
++                  conduit._base.doPackageLists(pkgnarrow='obsoletes').obsoletes))
+ 
+     pkgs = conduit.getPackages()
+     name2tup = _get_name2oldpkgtup(conduit._base)

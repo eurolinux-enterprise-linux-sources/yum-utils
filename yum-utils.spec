@@ -1,7 +1,7 @@
 Summary: Utilities based around the yum package manager
 Name: yum-utils
 Version: 1.1.30
-Release: 37%{?dist}
+Release: 40%{?dist}
 License: GPLv2+
 Group: Development/Tools
 Source: http://yum.baseurl.org/download/yum-utils/%{name}-%{version}.tar.gz
@@ -72,10 +72,17 @@ Patch60: BZ-1144887-updateinfo-list.patch
 Patch61: BZ-1191313-security-wrong-package-count.patch
 Patch62: BZ-1209212-security-exclude-dups.patch
 
+# RHEL-6.9
+Patch70: BZ-1347813-yum-security-wrong-count.patch
+Patch71: BZ-1293982-auto-update-debuginfo.patch
+Patch72: BZ-1313574-verify-exit-status.patch
+Patch73: BZ-1280453-repoquery-pkgnarrow.patch
+Patch74: BZ-1272025-filter-duplicate-pkgs-from-security-count.patch
+
 URL: http://yum.baseurl.org/download/yum-utils/
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildArch: noarch
-Requires: python >= 2.4 , yum >= 3.2.29-56 , libxml2-python 
+Requires: python >= 2.4 , yum >= 3.2.29-77 , libxml2-python
 # Requires: python-kitchen
 BuildRequires: python-devel >= 2.4
 BuildRequires: gettext
@@ -502,6 +509,13 @@ This plugin touches rpmdb files to work around overlayfs issues.
 %patch61 -p1
 %patch62 -p1
 
+# RHEL-6.9
+%patch70 -p1
+%patch71 -p1
+%patch72 -p1
+%patch73 -p1
+%patch74 -p1
+
 %install
 rm -rf $RPM_BUILD_ROOT
 make DESTDIR=$RPM_BUILD_ROOT install
@@ -801,6 +815,26 @@ fi
 %{_mandir}/man1/yum-ovl.1.*
 
 %changelog
+* Fri Nov 25 2016 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-40
+- Fix total available updates count.
+- Related: bug#1272828
+
+* Mon Oct 31 2016 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-39
+- Filter duplicates when counting security updates.
+- Resolves: bug#1272025
+- Update yum-verify man page.
+- Related: bug#1347813
+
+* Mon Oct 17 2016 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-38
+- Fix count of applicable security updates.
+- Resolves: bug#1347813
+- auto-update-debuginfo: fix check for repos in opts.
+- Resolves: bug#1293982
+- yum-plugin-verify: set exit status to 1 in case of problems.
+- Resolves: bug#1313574
+- repoquery: fix --pkgnarrow=installed.
+- Resolves: bug#1280453
+
 * Wed Feb 10 2016 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-37
 - Fix deleting pkgs in updateinfo.
 - Related: bug#1191313
