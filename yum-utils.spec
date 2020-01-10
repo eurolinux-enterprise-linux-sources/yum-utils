@@ -1,7 +1,7 @@
 Summary: Utilities based around the yum package manager
 Name: yum-utils
 Version: 1.1.30
-Release: 40%{?dist}
+Release: 41%{?dist}
 License: GPLv2+
 Group: Development/Tools
 Source: http://yum.baseurl.org/download/yum-utils/%{name}-%{version}.tar.gz
@@ -78,6 +78,10 @@ Patch71: BZ-1293982-auto-update-debuginfo.patch
 Patch72: BZ-1313574-verify-exit-status.patch
 Patch73: BZ-1280453-repoquery-pkgnarrow.patch
 Patch74: BZ-1272025-filter-duplicate-pkgs-from-security-count.patch
+
+# RHEL-6.10
+Patch80: BZ-1496340-package-cleanup-dont-remove-required.patch
+
 
 URL: http://yum.baseurl.org/download/yum-utils/
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -516,6 +520,9 @@ This plugin touches rpmdb files to work around overlayfs issues.
 %patch73 -p1
 %patch74 -p1
 
+# RHEL-6.10
+%patch80 -p1
+
 %install
 rm -rf $RPM_BUILD_ROOT
 make DESTDIR=$RPM_BUILD_ROOT install
@@ -815,6 +822,10 @@ fi
 %{_mandir}/man1/yum-ovl.1.*
 
 %changelog
+* Wed Feb 21 2018 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-41
+- package-cleanup: don't remove required dupes.
+- Resolves: bug#1496340
+
 * Fri Nov 25 2016 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-40
 - Fix total available updates count.
 - Related: bug#1272828
