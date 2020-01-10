@@ -1,0 +1,120 @@
+--- a/plugins/security/security.py    2014-08-11 10:16:19.000000000 -0400
++++ b/plugins/security/security.py       2015-01-26 05:57:34.463054460 -0500
+@@ -229,7 +229,7 @@ class UpdateinfoCommand:
+             mark = ''
+             if list_type == 'all':
+                 mark = '  '
+-                if _rpm_tup_vercmp(iname2tup[pkgtup[0]], pkgtup) >= 0:
++                if pkgtup[0] in iname2tup and _rpm_tup_vercmp(iname2tup[pkgtup[0]], pkgtup) >= 0:
+                     mark = 'i '
+             tn = notice['type']
+             if tn == 'security' and notice['severity']:
+@@ -444,13 +444,14 @@ class UpdateinfoCommand:
+         used_map = ysp_gen_used_map(opts)
+         iname2tup = {}
+         if False: pass
+-        elif list_type in ('installed', 'all'):
++        elif list_type == 'installed':
+             name2tup = _get_name2allpkgtup(base)
+             iname2tup = _get_name2instpkgtup(base)
+         elif list_type == 'updates':
+             name2tup = _get_name2oldpkgtup(base)
+-        elif list_type == 'available':
+-            name2tup = _get_name2instpkgtup(base)
++        elif list_type in ('available', 'all'):
++            name2tup = _get_name2aallpkgtup(base)
++            iname2tup = _get_name2instpkgtup(base)
+ 
+         def _show_pkgtup(pkgtup):
+             name = pkgtup[0]
+@@ -463,6 +464,10 @@ class UpdateinfoCommand:
+                     # Remove any that are newer than what we have installed
+                     if _rpm_tup_vercmp(iname2tup[name], pkgtup) < 0:
+                         continue
++                if list_type == 'available':
++                    # Remove any that are installed
++                    if name in iname2tup and _rpm_tup_vercmp(iname2tup[name], pkgtup) >= 0:
++                        continue
+ 
+                 if ysp_should_filter_pkg(opts, name, notice, used_map):
+                     yield (pkgtup, notice)
+@@ -537,7 +542,11 @@ def _get_name2allpkgtup(base):
+         first possible pkgtup. """
+     ofirst = [(pt[0], pt[1], '0','0','0') for pt in base.rpmdb.simplePkgList()]
+     return _get_name2pkgtup(base, ofirst)
+-
++def _get_name2aallpkgtup(base):
++    """ Get the pkgtups for all available pkgs. and munge that to be the
++        first possible pkgtup. """
++    ofirst = [(pt[0], pt[1],'0','0','0') for pt in base.pkgSack.simplePkgList()]
++    return _get_name2pkgtup(base, ofirst)
+ 
+ 
+ class SecurityUpdateCommand:
+diff -up yum-utils-1.1.30/docs/yum-security.8.old yum-utils-1.1.30/docs/yum-security.8
+--- yum-utils-1.1.30/docs/yum-security.8.old	2015-12-16 15:58:49.843549552 +0100
++++ yum-utils-1.1.30/docs/yum-security.8	2015-12-16 16:00:28.623196908 +0100
+@@ -52,19 +52,20 @@ and then:
+ .br 
+ .br 
+ .PP
+-.IP "\fBall\fP"
+-Is used to display information about both install and available advisories.
+-.PP
+-.IP "\fBavailable\fP"
+-Is used to display information about just available advisories. This is the
+-default.
+-.PP
+-.IP "\fBinstalled\fP"
+-Is used to display information about just install advisories.
+-.PP
+-.IP "\fBupdates\fP"
+-This is mostly the same as "available" but it only shows advisory information
+-for packages that can be updated to.
++.br
++.I \fR "\fB* updates\fP"
++Is used to display information about advisories for packages that can be
++updated. This is the default.
++.br
++.I \fR "\fB* installed\fP"
++Is used to display information only about installed advisories.
++.br
++.I \fR "\fB* available\fP"
++Is used to display information about advisories for packages available
++for updating or installation.
++.br
++.I \fR "\fB* all\fP"
++Is used to display information about both installed and available advisories.
+ .PP
+ .IP "\fB<advisory> [advisory...]\fP"
+ Is used to display information about one or more advisories.
+diff -up yum-utils-1.1.30/plugins/security/security.py.old yum-utils-1.1.30/plugins/security/security.py
+--- yum-utils-1.1.30/plugins/security/security.py.old	2015-12-16 15:53:37.604503283 +0100
++++ yum-utils-1.1.30/plugins/security/security.py	2015-12-16 15:58:29.301414928 +0100
+@@ -268,7 +268,7 @@ class UpdateinfoCommand:
+                 obj = notice.__str__()
+ 
+             if list_type == 'all':
+-                if _rpm_tup_vercmp(iname2tup[pkgtup[0]], pkgtup) >= 0:
++                if pkgtup[0] in iname2tup and _rpm_tup_vercmp(iname2tup[pkgtup[0]], pkgtup) >= 0:
+                     obj = obj + "\n  Installed : true"
+                 else:
+                     obj = obj + "\n  Installed : false"
+@@ -430,7 +430,7 @@ class UpdateinfoCommand:
+         opts, cmdline = base.plugins.cmdline
+         extcmds, show_type, filt_type = self._parse_extcmds(extcmds)
+ 
+-        list_type = "available"
++        list_type = "updates"
+         if extcmds and extcmds[0] in ("updates","available","installed", "all"):
+             list_type = extcmds.pop(0)
+ 
+@@ -462,7 +462,7 @@ class UpdateinfoCommand:
+ 
+                 if list_type == 'installed':
+                     # Remove any that are newer than what we have installed
+-                    if _rpm_tup_vercmp(iname2tup[name], pkgtup) < 0:
++                    if name in iname2tup and _rpm_tup_vercmp(iname2tup[name], pkgtup) < 0:
+                         continue
+                 if list_type == 'available':
+                     # Remove any that are installed

@@ -1,0 +1,17 @@
+--- a/docs/yum-security.8    2015-04-01 12:06:27.445301197 +0200
++++ b/docs/yum-security.8    2015-04-01 12:22:26.551217917 +0200
+@@ -139,6 +139,14 @@ security errata package) use:
+ .IP
+ yum --security update-minimal
+ .PP
++To install the minimal update necessary to satisfy the advisory FEDORA-2707-7654 use:
++.IP
++yum update-minimal --advisory FEDORA-2707-7654
++.PP
++To update all the packages listed in the advisory FEDORA-2707-7654 to their latest versions use:
++.IP
++yum update --advisory FEDORA-2707-7654
++.PP
+ To get a list of all BZs that are fixed for packages you have installed use:
+ .IP
+ yum updateinfo list bugzillas

@@ -1,0 +1,29 @@
+diff -up yum-utils-1.1.30/docs/yum-security.8.old yum-utils-1.1.30/docs/yum-security.8
+--- yum-utils-1.1.30/docs/yum-security.8.old	2015-12-15 17:06:14.038002955 +0100
++++ yum-utils-1.1.30/docs/yum-security.8	2015-12-15 17:30:37.691613374 +0100
+@@ -12,9 +12,11 @@ added yum \fIcommand\fPs are:
+ .br 
+ .I \fR yum update-minimal
+ .PP 
+-This works like the update command, but if you have the the package foo-1
+-installed and have foo-2 and foo-3 available with updateinfo.xml then
+-update-minimal will update you to foo-3.
++This works like the update command, but if you have the package foo-1
++installed and have foo-2 (bugfix) and foo-3 (enhancement) available with
++updateinfo.xml then update-minimal --bugfixes will update you to foo-2.
++.PP 
++.I \fR yum updateinfo
+ .br 
+ .I \fR yum updateinfo info
+ .br 
+@@ -80,8 +82,8 @@ Is used to show all the errata notice in
+ updateinfo.xml data in yum. This includes bugzillas, CVEs, security updates and
+ new.
+ .PP 
+-.IP "\fBlist\fP"
+-Is used to list all of the relevant errata notice information, from the
++.IP "\fBsummary\fP"
++Is used to show the summary of errata notice information, from the
+ updateinfo.xml data in yum. This includes bugzillas, CVEs, security updates and
+ new.
+ .IP 

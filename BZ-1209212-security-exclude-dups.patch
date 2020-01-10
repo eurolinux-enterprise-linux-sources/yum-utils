@@ -1,0 +1,38 @@
+diff -up yum-utils-1.1.30/plugins/security/security.py.old yum-utils-1.1.30/plugins/security/security.py
+--- yum-utils-1.1.30/plugins/security/security.py.old	2016-01-25 12:52:14.701437730 +0100
++++ yum-utils-1.1.30/plugins/security/security.py	2016-01-25 12:52:43.060586906 +0100
+@@ -747,14 +747,17 @@ def exclude_hook(conduit):
+     pkgs = conduit.getPackages()
+     name2tup = _get_name2oldpkgtup(conduit._base)
+     
+-    cnt = 0
++    cnt = 0
++    pkgs_to_del = []
+     for pkg in pkgs:
+         name = pkg.name
+         if (name not in name2tup or
+             not ysp_should_keep_pkg(opts, name2tup[name], md_info, used_map)):
+-            ysp_del_pkg(pkg)
++            pkgs_to_del.append(pkg.name)
+             continue
+         cnt += 1
++    for p in conduit._base.doPackageLists(pkgnarrow='available', patterns=pkgs_to_del, showdups=True).available:
++        ysp_del_pkg(p)
+ 
+     ysp_chk_used_map(used_map, lambda x: conduit.error(2, x))
+     if cnt:
+diff -up yum-utils-1.1.30/plugins/security/security.py.old yum-utils-1.1.30/plugins/security/security.py
+--- yum-utils-1.1.30/plugins/security/security.py.old	2016-02-10 14:59:40.182035905 +0100
++++ yum-utils-1.1.30/plugins/security/security.py	2016-02-10 15:00:22.745299021 +0100
+@@ -756,8 +756,9 @@ def exclude_hook(conduit):
+             pkgs_to_del.append(pkg.name)
+             continue
+         cnt += 1
+-    for p in conduit._base.doPackageLists(pkgnarrow='available', patterns=pkgs_to_del, showdups=True).available:
+-        ysp_del_pkg(p)
++    if pkgs_to_del:
++        for p in conduit._base.doPackageLists(pkgnarrow='available', patterns=pkgs_to_del, showdups=True).available:
++            ysp_del_pkg(p)
+ 
+     ysp_chk_used_map(used_map, lambda x: conduit.error(2, x))
+     if cnt:

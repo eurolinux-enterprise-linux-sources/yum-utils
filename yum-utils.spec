@@ -1,7 +1,7 @@
 Summary: Utilities based around the yum package manager
 Name: yum-utils
 Version: 1.1.30
-Release: 30%{?dist}
+Release: 37%{?dist}
 License: GPLv2+
 Group: Development/Tools
 Source: http://yum.baseurl.org/download/yum-utils/%{name}-%{version}.tar.gz
@@ -58,10 +58,24 @@ Patch45: BZ-1078724-needs-restarting-traceback.patch
 Patch46: BZ-981773-all_manpages.patch 
 Patch47: BZ-1078724-catch-ioerror.patch
 
+# RHEL-6.8
+Patch50: BZ-1134973-post-transaction-colons.patch
+Patch51: BZ-1260977-overlayfs-workaround-plugin.patch
+Patch52: BZ-865694-yum-security-manpage.patch
+Patch53: BZ-1165661-archlist-docs.patch
+Patch54: BZ-1189033-reposync-manpage.patch
+Patch55: BZ-1208155-update-minimal-manpage.patch
+Patch57: BZ-1225753-yum-config-manager-config-file-update.patch
+Patch58: BZ-1225754-yum-config-manager-disable-all-repos.patch
+Patch59: BZ-1285748-repoquery-version.patch
+Patch60: BZ-1144887-updateinfo-list.patch
+Patch61: BZ-1191313-security-wrong-package-count.patch
+Patch62: BZ-1209212-security-exclude-dups.patch
+
 URL: http://yum.baseurl.org/download/yum-utils/
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildArch: noarch
-Requires: python >= 2.4 , yum >= 3.2.29-56
+Requires: python >= 2.4 , yum >= 3.2.29-56 , libxml2-python 
 # Requires: python-kitchen
 BuildRequires: python-devel >= 2.4
 BuildRequires: gettext
@@ -154,18 +168,6 @@ Requires: yum >= 3.0
 %description -n yum-plugin-tsflags
 This plugin allows you to specify optional transaction flags on the yum
 command line
-
-%package -n yum-plugin-downloadonly
-Summary: Yum plugin to add downloadonly command option
-Group: System Environment/Base
-Provides: yum-downloadonly = %{version}-%{release}
-Obsoletes: yum-downloadonly < 1.1.20-0
-Conflicts: yum-downloadonly < 1.1.20-0
-Requires: yum >= 3.0
-
-%description -n yum-plugin-downloadonly
-This plugin adds a --downloadonly flag to yum so that yum will only download
-the packages and not install/update them.
 
 %package -n yum-plugin-priorities
 Summary: plugin to give priorities to packages from different repos
@@ -419,6 +421,15 @@ When this plugin is installed it adds the yum command "ps", which allows you
 to see which running processes are accociated with which packages (and if they
 need rebooting, or have updates, etc.)
 
+%package -n yum-plugin-ovl
+Summary: Yum plugin to work around overlayfs issues
+Group: System Environment/Base
+Provides: yum-ovl = %{version}-%{release}
+Requires: yum >= 3.2.29-70
+
+%description -n yum-plugin-ovl
+This plugin touches rpmdb files to work around overlayfs issues.
+
 %prep
 %setup -q
 
@@ -477,6 +488,20 @@ need rebooting, or have updates, etc.)
 %patch46 -p1
 %patch47 -p1
 
+# RHEL-6.8
+%patch50 -p1
+%patch51 -p1
+%patch52 -p1
+%patch53 -p1
+%patch54 -p1
+%patch55 -p1
+%patch57 -p1
+%patch58 -p1
+%patch59 -p1
+%patch60 -p1
+%patch61 -p1
+%patch62 -p1
+
 %install
 rm -rf $RPM_BUILD_ROOT
 make DESTDIR=$RPM_BUILD_ROOT install
@@ -491,7 +516,6 @@ plugins="\
  protectbase \
  versionlock \
  tsflags \
- downloadonly \
  priorities \
  merge-conf \
  security \
@@ -510,6 +534,7 @@ plugins="\
  local \
  fs-snapshot \
  ps \
+ ovl \
 "
 
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/yum/pluginconf.d/ $RPM_BUILD_ROOT/usr/lib/yum-plugins/
@@ -634,12 +659,6 @@ fi
 %doc COPYING
 %config(noreplace) %{_sysconfdir}/yum/pluginconf.d/tsflags.conf
 /usr/lib/yum-plugins/tsflags.*
-
-%files -n yum-plugin-downloadonly
-%defattr(-, root, root)
-%doc COPYING
-%config(noreplace) %{_sysconfdir}/yum/pluginconf.d/downloadonly.conf
-/usr/lib/yum-plugins/downloadonly.*
 
 %files -n yum-plugin-priorities
 %defattr(-, root, root)
@@ -774,7 +793,57 @@ fi
 %config(noreplace) %{_sysconfdir}/yum/pluginconf.d/ps.conf
 /usr/lib/yum-plugins/ps.*
 
+%files -n yum-plugin-ovl
+%defattr(-, root, root)
+%doc COPYING
+%config(noreplace) %{_sysconfdir}/yum/pluginconf.d/ovl.conf
+/usr/lib/yum-plugins/ovl.*
+%{_mandir}/man1/yum-ovl.1.*
+
 %changelog
+* Wed Feb 10 2016 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-37
+- Fix deleting pkgs in updateinfo.
+- Related: bug#1191313
+
+* Mon Jan 25 2016 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-36
+- Fix performance issue when excluding dups from the list of security updates.
+- Related: bug#1209212
+
+* Thu Jan 07 2016 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-35
+- Do not build yum-plugin-downloadonly.
+- Resolves: bug#1296404
+
+* Wed Dec 16 2015 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-34
+- Fix 'updateinfo list available' logic and make 'updates' the default.
+- Resolves: bug#1144887
+- Fix updateinfo to exclude wrong arch updates.
+- Resolves: bug#1191313
+
+* Tue Dec 15 2015 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-33
+- Fix yum-security manpage.
+- Resolves: bug#865694
+- Resolves: bug#1208155
+- Add libxml2-python to Requires for repo-rss.
+- Resolves: bug#1155093
+- yumdownloader: fix description of --archlist in the manpage.
+- Resolves: bug#1165661
+- Add missing options to reposync manpage.
+- Resolves: bug#1189033
+- Exclude dups from the list of security updates.
+- Resolves: bug#1209212
+- yum-config-manager: update config file specified using -c option.
+- Resolves: bug#1225753
+- yum-config-manager: require \* syntax to disable all repos.
+- Resolves: bug#1225754
+- Remove -v from repoquery man page.
+- Resolves: bug#1285748
+
+* Mon Dec 14 2015 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-32
+- post-transaction-actions: allow colons in command part.
+- Resolves: bug#1134973
+- ovl plugin: new plugin for overlayfs issue workaround.
+- Resolves: bug#1260977
+
 * Mon Aug 11 2014 Valentina Mukhamedzhanova <vmukhame@redhat.com> -1.1.30-30
 - Add missing manpages.
 - Related: bug#981773

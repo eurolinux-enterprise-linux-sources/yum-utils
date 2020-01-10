@@ -1,0 +1,40 @@
+From b002bb0ed3089f1b67e2f776382845c3b3d9cad2 Mon Sep 17 00:00:00 2001
+From: Jan Chaloupka <jchaloup redhat com>
+Date: Wed, 4 Feb 2015 10:47:28 +0100
+Subject: [PATCH] reposync.1 missing options
+
+---
+ yum-utils/man1/reposync.1 | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/docs/reposync.1 b/docs/reposync.1
+index a7563c7..9792577 100644
+--- a/docs/reposync.1
++++ b/docs/reposync.1
+@@ -20,16 +20,26 @@ Also download .src.rpm files.
+ .IP "\fB\-r REPOID, \-\-repoid=REPOID\fP"
+ Specify repo ids to query, can be specified multiple times (default is
+ all enabled).
++.IP "\fB\-e\ CACHEDIR, \-\-cachedir CACHEDIR\fP"
++Directory in which to store metadata.
+ .IP "\fB\-t, \-\-tempcache\fP"
+ Use a temp dir for storing/accessing yum-cache.
++.IP "\fB\-d, \-\-delete\fP"
++Delete local packages no longer present in repository.
+ .IP "\fB\-p DESTDIR, \-\-download_path=DESTDIR\fP"
+ Path to download packages to: defaults to current directory.
++.IP "\fB\-\-norepopath\fP"
++Don't add the reponame to the download path.
++Can only be used when syncing a single repository (default is
++to add the reponame).
+ .IP "\fB\-g, \-\-gpgcheck\fP"
+ Remove packages that fail GPG signature checking after downloading.
+ .IP "\fB\-u, \-\-urls\fP"
+ Just list urls of what would be downloaded, don't download.
+ .IP "\fB\-l, \-\-plugins\fP"
+ Enable yum plugin support.
++.IP "\fB\-m, \-\-downloadcomps\fP"
++Also download comps.xml.
+ .IP "\fB\-n, \-\-newest-only\fP"
+ Download only newest packages per-repo.
+ .IP "\fB\-q, \-\-quiet\fP"
