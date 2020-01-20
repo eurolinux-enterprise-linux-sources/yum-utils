@@ -1,0 +1,33 @@
+commit 56c7eacd9d0ad9237d05e1393c12d5059edb2c7a
+Author: Michal Domonkos <mdomonko@redhat.com>
+Date:   Mon Oct 23 15:33:13 2017 +0200
+
+    verifytree: fix handling of missing comps. BZ 1333353
+    
+    When we have group_command = 'objects' and no comps file, invoking
+    my.comps doesn't raise a GroupsError as we would expect, and we continue
+    to newrepo.getGroups() where we finally traceback.  This commit makes
+    sure we detect that beforehand and fail correctly.
+
+diff --git a/verifytree.py b/verifytree.py
+index 6a127cd..7f11f10 100755
+--- a/verifytree.py
++++ b/verifytree.py
+@@ -237,7 +237,8 @@ def main():
+         try:
+             print "  verifying comps.xml with yum"
+             b = my.comps.compscount
+-        except Errors.GroupsError, e:
++            comps = newrepo.getGroups()
++        except (Errors.GroupsError, Errors.RepoMDError):
+             print '  comps file missing or unparseable'
+             report('COMPS','FAILED')
+             retval = retval | BAD_COMPS
+@@ -254,7 +255,6 @@ def main():
+                        'properly installed')
+                 r = 1
+             else:
+-                comps = newrepo.getGroups()
+                 r = os.system("xmllint --noout --nowarning --relaxng %s %s" %
+                     (schema, comps))
+             if r != 0:

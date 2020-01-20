@@ -1,0 +1,83 @@
+diff -up yum-utils-1.1.31/plugins/post-transaction-actions/post-transaction-actions.py.orig yum-utils-1.1.31/plugins/post-transaction-actions/post-transaction-actions.py
+--- yum-utils-1.1.31/plugins/post-transaction-actions/post-transaction-actions.py.orig	2017-11-03 16:26:49.762703946 +0100
++++ yum-utils-1.1.31/plugins/post-transaction-actions/post-transaction-actions.py	2017-11-03 16:26:53.607688349 +0100
+@@ -139,7 +139,6 @@ def posttrans_hook(conduit):
+                 c_string = re.compile(restring)
+ 
+             for txmbr in pkgset:
+-                matched = False
+                 thispo = txmbr.po
+                 if txmbr.output_state in TS_INSTALL_STATES:
+                     # thispo is AvailablePackage; filelist access could trigger download
+@@ -150,17 +149,13 @@ def posttrans_hook(conduit):
+                     if a_k in thispo.filelist + thispo.dirlist + thispo.ghostlist:
+                         thiscommand = _convert_vars(txmbr, a_c)
+                         commands_to_run[thiscommand] = 1
+-                        matched = True
++                        break
+                 else:
+                     for name in thispo.filelist + thispo.dirlist + thispo.ghostlist:
+                         if c_string.match(name):
+                             thiscommand = _convert_vars(txmbr, a_c)
+                             commands_to_run[thiscommand] = 1
+-                            matched = True
+                             break
+-                
+-                if matched:
+-                    break
+             continue
+         
+         if a_k.find('/') == -1: # pkgspec
+diff -up yum-utils-1.1.31/plugins/post-transaction-actions/sample.action.orig yum-utils-1.1.31/plugins/post-transaction-actions/sample.action
+--- yum-utils-1.1.31/plugins/post-transaction-actions/sample.action.orig	2011-08-10 17:20:19.000000000 +0200
++++ yum-utils-1.1.31/plugins/post-transaction-actions/sample.action	2017-11-03 16:26:53.607688349 +0100
+@@ -19,3 +19,8 @@ zsh:install:touch /tmp/zsh-installed-als
+ /bin/z*h:install:touch /tmp/bin-zsh-installed
+ z*h:any:touch /tmp/bin-zsh-any
+ 
++# each action is expanded once for each matching package, and no action is
++# executed twice per transaction, for example
++*:install:echo $repoid >>/tmp/repos
++# will write each repo only once to /tmp/repos, even if multiple packages from
++# the same repo were installed
+diff -up yum-utils-1.1.31/plugins/pre-transaction-actions/pre-transaction-actions.py.orig yum-utils-1.1.31/plugins/pre-transaction-actions/pre-transaction-actions.py
+--- yum-utils-1.1.31/plugins/pre-transaction-actions/pre-transaction-actions.py.orig	2017-11-03 16:26:49.819703715 +0100
++++ yum-utils-1.1.31/plugins/pre-transaction-actions/pre-transaction-actions.py	2017-11-03 16:26:53.609688341 +0100
+@@ -120,24 +120,19 @@ def pretrans_hook(conduit):
+                 c_string = re.compile(restring)
+ 
+             for txmbr in pkgset:
+-                matched = False
+                 thispo = txmbr.po
+         
+                 if not yum.misc.re_glob(a_k):
+                     if a_k in thispo.filelist + thispo.dirlist + thispo.ghostlist:
+                         thiscommand = _convert_vars(txmbr, a_c)
+                         commands_to_run[thiscommand] = 1
+-                        matched = True
++                        break
+                 else:
+                     for name in thispo.filelist + thispo.dirlist + thispo.ghostlist:
+                         if c_string.match(name):
+                             thiscommand = _convert_vars(txmbr, a_c)
+                             commands_to_run[thiscommand] = 1
+-                            matched = True
+                             break
+-                
+-                if matched:
+-                    break
+             continue
+         
+         if a_k.find('/') == -1: # pkgspec
+diff -up yum-utils-1.1.31/plugins/pre-transaction-actions/sample.action.orig yum-utils-1.1.31/plugins/pre-transaction-actions/sample.action
+--- yum-utils-1.1.31/plugins/pre-transaction-actions/sample.action.orig	2017-11-03 16:26:49.820703711 +0100
++++ yum-utils-1.1.31/plugins/pre-transaction-actions/sample.action	2017-11-03 16:26:53.609688341 +0100
+@@ -19,3 +19,8 @@ zsh:install:touch /tmp/zsh-installed-als
+ /bin/z*h:install:touch /tmp/bin-zsh-installed
+ z*h:any:touch /tmp/bin-zsh-any
+ 
++# each action is expanded once for each matching package, and no action is
++# executed twice per transaction, for example
++*:install:echo $repoid >>/tmp/repos
++# will write each repo only once to /tmp/repos, even if multiple packages from
++# the same repo are going to be installed

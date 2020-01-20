@@ -1,0 +1,199 @@
+commit f84a2dbcc28312105246fac51771481640759da5
+Author: Phil Dibowitz <phil@ipom.com>
+Date:   Thu Jul 2 11:40:55 2015 -0700
+
+    Add option to remove newest dupes instead of oldest dupes
+    
+    Sometimes in a failed transaction you need to remove the newest of the dupes and
+    not the oldest. This provides that option.
+
+diff --git a/package-cleanup.py b/package-cleanup.py
+index acad9f2..13cfb89 100755
+--- a/package-cleanup.py
++++ b/package-cleanup.py
+@@ -79,6 +79,9 @@ class PackageCleanup(YumUtilBase):
+         dupegrp.add_option("--cleandupes", default=False, 
+                     dest="cleandupes", action="store_true",
+                     help='Scan for duplicates in your rpmdb and remove older ')
++        dupegrp.add_option("--removenewestdupes", default=False, 
++                    dest="removenewestdupes", action="store_true",
++                    help='Remove the newest dupes instead of the oldest dupes.')
+         dupegrp.add_option("--noscripts", default=False,
+                     dest="noscripts", action="store_true",
+                     help="disable rpm scriptlets from running when cleaning duplicates")
+@@ -172,7 +175,7 @@ class PackageCleanup(YumUtilBase):
+             
+         return results
+ 
+-    def _remove_old_dupes(self):
++    def _remove_dupes(self, newest=False):
+         """add older duplicate pkgs to be removed in the transaction"""
+         dupedict = self._find_installed_duplicates()
+ 
+@@ -180,7 +183,11 @@ class PackageCleanup(YumUtilBase):
+         for (name,dupelists) in dupedict.items():
+             for dupelist in dupelists:
+                 dupelist.sort()
+-                for lowpo in dupelist[0:-1]:
++                if newest:
++                    plist = dupelist[1:]
++                else:
++                    plist = dupelist[0:-1]
++                for lowpo in plist:
+                     removedupes.append(lowpo)
+ 
+         for po in removedupes:
+@@ -373,7 +380,7 @@ class PackageCleanup(YumUtilBase):
+                 sys.exit(1)
+             if opts.noscripts:
+                 self.conf.tsflags.append('noscripts')
+-            self._remove_old_dupes()
++            self._remove_dupes(opts.removenewestdupes)
+             self.run_with_package_names.add('yum-utils')
+ 
+             if hasattr(self, 'doUtilBuildTransaction'):
+commit 27784822a342debd3ecfa04686a35f2e7e576023
+Author: Michal Domonkos <mdomonko@redhat.com>
+Date:   Wed Oct 11 19:26:38 2017 +0200
+
+    package-cleanup: don't remove required dupes. BZ 1455318
+    
+    Note: Turning removedupes into a set for O(1) complexity on
+    removedupes.remove().
+
+diff --git a/package-cleanup.py b/package-cleanup.py
+index 13cfb89..9f74609 100755
+--- a/package-cleanup.py
++++ b/package-cleanup.py
+@@ -176,10 +176,12 @@ class PackageCleanup(YumUtilBase):
+         return results
+ 
+     def _remove_dupes(self, newest=False):
+-        """add older duplicate pkgs to be removed in the transaction"""
+-        dupedict = self._find_installed_duplicates()
++        """add duplicate pkgs to be removed in the transaction,
++           return a dict of excluded dupes and their requiring packages"""
+ 
+-        removedupes = []
++        # Find dupes
++        dupedict = self._find_installed_duplicates()
++        removedupes = set()
+         for (name,dupelists) in dupedict.items():
+             for dupelist in dupelists:
+                 dupelist.sort()
+@@ -188,11 +190,37 @@ class PackageCleanup(YumUtilBase):
+                 else:
+                     plist = dupelist[0:-1]
+                 for lowpo in plist:
+-                    removedupes.append(lowpo)
+-
++                    removedupes.add(lowpo)
++
++        # Exclude any such dupes that would pull other installed packages into
++        # the removal transaction (to prevent us from accidentally removing a
++        # huge part of a working system) by performing a dry transaction(s)
++        # first.
++        excluded = {}
++        while True:
++            for po in removedupes:
++                self.remove(po)
++            changed = False
++            for txmbr in self.tsInfo.getMembers():
++                requiredby = self._checkRemove(txmbr)
++                if requiredby:
++                    removedupes.remove(txmbr.po)
++                    excluded[txmbr.po] = requiredby
++                    # Do another round, to cover any transitive deps within
++                    # removedupes, for example: if foo requires bar requires
++                    # baz and removedupes contains bar and baz, then
++                    # _checkRemove(baz) won't return bar.
++                    changed = True
++            del self.tsInfo
++            if not changed:
++                break
++
++        # Mark the dupes for removal
+         for po in removedupes:
+             self.remove(po)
+ 
++        return excluded
++
+ 
+     def _should_show_leaf(self, po, leaf_regex, exclude_devel, exclude_bin):
+         """
+@@ -380,7 +408,13 @@ class PackageCleanup(YumUtilBase):
+                 sys.exit(1)
+             if opts.noscripts:
+                 self.conf.tsflags.append('noscripts')
+-            self._remove_dupes(opts.removenewestdupes)
++            excluded = self._remove_dupes(opts.removenewestdupes)
++            for po, requiredby in excluded.iteritems():
++                count = len(requiredby)
++                print ('Not removing %s because it is required by %s '
++                       'installed package%s' %
++                       (po.hdr.sprintf(opts.qf), count,
++                        's' if count > 1 else ''))
+             self.run_with_package_names.add('yum-utils')
+ 
+             if hasattr(self, 'doUtilBuildTransaction'):
+@@ -397,9 +431,20 @@ class PackageCleanup(YumUtilBase):
+ 
+             if len(self.tsInfo) < 1:
+                 print 'No duplicates to remove'
+-                sys.exit(0)
+-                
+-            sys.exit(self.doUtilTransaction())
++                errc = 0
++            else:
++                errc = self.doUtilTransaction()
++
++            if excluded:
++                self.logger.warn(
++                    'Warning: Some duplicates were not removed because they '
++                    'are required by installed packages.\n'
++                    'You can try --cleandupes with%s --removenewestdupes, '
++                    'or review them with --dupes and remove manually.' %
++                    ('out' if opts.removenewestdupes else '')
++                )
++
++            sys.exit(errc)
+ 
+     
+ if __name__ == '__main__':
+commit 4594bbc623b68bea6522047fb6267069c8ad94c8
+Author: Michal Domonkos <mdomonko@redhat.com>
+Date:   Wed Oct 11 20:23:06 2017 +0200
+
+    package-cleanup: update man page
+    
+    Add missing options from --help and also clear up the wording of
+    --removenewestdupes.
+
+diff --git a/docs/package-cleanup.1 b/docs/package-cleanup.1
+index 61959ac..5b7e1c0 100644
+--- a/docs/package-cleanup.1
++++ b/docs/package-cleanup.1
+@@ -36,6 +36,10 @@ Scan for duplicates in the local RPM database.
+ .IP "\fB\-\-cleandupes\fP"
+ Scan for duplicates in the local RPM database and clean out the
+ older versions.
++.IP "\fB\-\-removenewestdupes\fP"
++Remove the newest dupes instead of the oldest dupes when cleaning duplicates.
++.IP "\fB\-\-noscripts\fP"
++Disable rpm scriptlets from running when cleaning duplicates.
+ .IP "\fB\-\-count <COUNT>\fP"
+ Number of duplicate/kernel packages to keep on the system (default 2)
+ .PP 
+diff --git a/package-cleanup.py b/package-cleanup.py
+index 9f74609..4a44326 100755
+--- a/package-cleanup.py
++++ b/package-cleanup.py
+@@ -81,7 +81,7 @@ class PackageCleanup(YumUtilBase):
+                     help='Scan for duplicates in your rpmdb and remove older ')
+         dupegrp.add_option("--removenewestdupes", default=False, 
+                     dest="removenewestdupes", action="store_true",
+-                    help='Remove the newest dupes instead of the oldest dupes.')
++                    help='Remove the newest dupes instead of the oldest dupes when cleaning duplicates.')
+         dupegrp.add_option("--noscripts", default=False,
+                     dest="noscripts", action="store_true",
+                     help="disable rpm scriptlets from running when cleaning duplicates")

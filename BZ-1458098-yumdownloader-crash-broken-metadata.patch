@@ -1,0 +1,21 @@
+commit 6fa187521c370a3b13503ee330140778d1dbafc1
+Author: Valentina Mukhamedzhanova <vmukhame@redhat.com>
+Date:   Fri Oct 20 13:33:11 2017 +0200
+
+    yumdownloader: fix crash on broken srpm metadata.
+
+diff --git a/yumdownloader.py b/yumdownloader.py
+index 1b95e8d..a0db95c 100755
+--- a/yumdownloader.py
++++ b/yumdownloader.py
+@@ -47,6 +47,10 @@ def _best_convert_pkg2srcpkgs(self, opts, pkg):
+     if not opts.source or pkg.arch == 'src':
+         return [pkg]
+ 
++    if pkg.sourcerpm is None:
++        self.logger.error('No source RPM found for %s' % str(pkg))
++        return []
++
+     (n,v,r,e,a) = rpmUtils.miscutils.splitFilename(pkg.sourcerpm)
+     src = self.pkgSack.searchNevra(name=n, ver=v, rel=r, arch='src')
+     if src == []:

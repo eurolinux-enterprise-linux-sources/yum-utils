@@ -12,7 +12,7 @@
 Summary: Utilities based around the yum package manager
 Name: yum-utils
 Version: 1.1.31
-Release: 42%{?dist}
+Release: 45%{?dist}
 License: GPLv2+
 Group: Development/Tools
 Source: http://yum.baseurl.org/download/yum-utils/%{name}-%{version}.tar.gz
@@ -61,6 +61,17 @@ Patch131: BZ-1329649-reposync-download-metadata-manpage.patch
 Patch150: BZ-1403015-yum-config-manager-select-disabled-repoid-setopts.patch
 Patch151: BZ-1406891-verify-exit-status.patch
 Patch152: BZ-1429831-yum-copr.patch
+
+#rhel-7.5
+Patch160: BZ-1458098-yumdownloader-crash-broken-metadata.patch
+Patch161: BZ-1455318-package-cleanup-dont-remove-required.patch
+Patch162: BZ-1428210-fastestmirror-use-prereposetup.patch
+Patch163: BZ-1445751-yum-debug-dump-improve-repo-failure-handling.patch
+Patch164: BZ-1470647-add-pre-transaction-actions-plugin.patch
+Patch165: BZ-1437636-yum-builddep-add-define-opt.patch
+Patch166: BZ-1349433-verifytree-handle-no-core-group.patch
+Patch167: BZ-1333353-verifytree-fix-handling-no-comps.patch
+Patch168: BZ-1127783-transaction-actions-fix-file-globs.patch
 
 URL: http://yum.baseurl.org/download/yum-utils/
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -309,6 +320,16 @@ This plugin removes any unused dependencies that were brought in by an install
 but would not normally be removed. It helps to keep a system clean of unused
 libraries and packages.
 
+%package -n yum-plugin-pre-transaction-actions
+Summary: Yum plugin to run arbitrary commands when certain pkgs are acted on
+Group: System Environment/Base
+Provides: yum-pre-transaction-actions = %{version}-%{release}
+Requires: yum >= 3.2.19
+
+%description -n yum-plugin-pre-transaction-actions
+This plugin allows the user to run arbitrary actions prior to a transaction
+when specified packages are changed.
+
 %package -n yum-plugin-post-transaction-actions
 Summary: Yum plugin to run arbitrary commands when certain pkgs are acted on
 Group: System Environment/Base
@@ -480,6 +501,17 @@ This plugin touches rpmdb files to work around overlayfs issues.
 %patch151 -p1
 %patch152 -p1
 
+#rhel-7.5
+%patch160 -p1
+%patch161 -p1
+%patch162 -p1
+%patch163 -p1
+%patch164 -p1
+%patch165 -p1
+%patch166 -p1
+%patch167 -p1
+%patch168 -p1
+
 %install
 rm -rf $RPM_BUILD_ROOT
 make DESTDIR=$RPM_BUILD_ROOT install
@@ -504,6 +536,7 @@ plugins="\
  verify \
  keys \
  remove-with-leaves \
+ pre-transaction-actions \
  post-transaction-actions \
  rpm-warm-cache \
  auto-update-debuginfo \
@@ -527,6 +560,7 @@ plugins="$plugins \
 %endif
 
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/yum/pluginconf.d/ $RPM_BUILD_ROOT/%pluginhome
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/yum/pre-actions
 mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}/yum/post-actions
 
 cd plugins
@@ -728,6 +762,15 @@ fi
 %{pluginhome}/remove-with-leaves.*
 %config(noreplace) %{_sysconfdir}/yum/pluginconf.d/remove-with-leaves.conf
 
+%files -n yum-plugin-pre-transaction-actions
+%defattr(-, root, root)
+%doc COPYING
+%{pluginhome}/pre-transaction-actions.*
+%config(noreplace) %{_sysconfdir}/yum/pluginconf.d/pre-transaction-actions.conf
+%doc plugins/pre-transaction-actions/sample.action
+# Default *.action file dropping dir.
+%dir %{_sysconfdir}/yum/pre-actions
+
 %files -n yum-plugin-post-transaction-actions
 %defattr(-, root, root)
 %doc COPYING
@@ -799,6 +842,30 @@ fi
 %{_mandir}/man1/yum-ovl.1.*
 
 %changelog
+* Tue Nov 21 2017 Valentina Mukhamedzhanova <vmukhame@redhat.com> - 1.1.31-45
+- Fix file globbing in transaction-actions.
+- Related: bug#1470647
+
+* Mon Oct 30 2017 Valentina Mukhamedzhanova <vmukhame@redhat.com> - 1.1.31-44
+- Add pre-transaction-actions plugin.
+- Resolves: bug#1470647
+- yum-builddep: add --define option.
+- Resolves: bug#1437636
+- verifytree: handle no @core group gracefully.
+- Resolves: bug#1349433
+- verifytree: fix handling of missing comps.
+- Resolves: bug#1333353
+
+* Fri Oct 20 2017 Valentina Mukhamedzhanova <vmukhame@redhat.com> - 1.1.31-43
+- yumdownloader: fix crash on broken srpm metadata.
+- Resolves: bug#1458098
+- package-cleanup: don't remove required dupes.
+- Resolves: bug#1455318
+- fastestmirror: move the logic before MD retrieval.
+- Resolves: bug#1428210
+- yum-debug-dump: improve repo failure handling.
+- Resolves: bug#1445751
+
 * Tue Mar 21 2017 Valentina Mukhamedzhanova <vmukhame@redhat.com> - 1.1.31-42
 - Add yum-plugin-copr.
 - Resolves: bug#1429831

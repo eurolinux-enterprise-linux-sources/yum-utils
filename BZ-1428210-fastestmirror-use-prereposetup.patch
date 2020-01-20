@@ -1,0 +1,68 @@
+commit f62ca0e78ff5b087c0cb49d858e040a5c5284eeb
+Author: Michal Domonkos <mdomonko@redhat.com>
+Date:   Mon Jun 5 20:29:10 2017 +0200
+
+    fastestmirror: move the logic before MD retrieval. BZ 1428210
+    
+    This plugin has had no effect on metadata downloads since commit a522869
+    in yum where we put a RepoStorage.retrieveAllMD() call before
+    postreposetup_hook used by this plugin.  Let's change to using
+    prereposetup_hook instead so that retrieveAllMD() can make use of the
+    sorted urls.
+    
+    In practice, though, mirrors would still be benchmarked and sorted
+    because of a similar mechanism present in urlgrabber (the timedhosts
+    option, always enabled in yum) with one exception:  If the yum cache is
+    empty (no timedhosts file yet), the original order received from the
+    server would be retained (a property of stable sorting [1]) for the
+    repomd.xml download, which is still a bad situation that wouldn't happen
+    before a522869; this is fixed with this commit as it allows the plugin
+    to do its work beforehand.
+    
+    Note that the stuff we do in yum/repos.py in between prereposetup_hook
+    and postreposetup_hook has nothing to do with our plugin anyway, so we
+    won't "miss" or break any configuration steps when we move our logic
+    from the latter to the former location.
+    
+    [1] urlgrabber/mirror.py:275
+
+diff --git a/plugins/fastestmirror/fastestmirror.py b/plugins/fastestmirror/fastestmirror.py
+index fe79629..5887e32 100644
+--- a/plugins/fastestmirror/fastestmirror.py
++++ b/plugins/fastestmirror/fastestmirror.py
+@@ -146,7 +146,7 @@ def _len_non_ftp(urls):
+         num += 1
+     return num
+ 
+-def postreposetup_hook(conduit):
++def prereposetup_hook(conduit):
+     """
+     This function is called after Yum has initiliazed all the repository information.
+ 
+@@ -255,7 +255,7 @@ def read_timedhosts():
+     communicate with other functions.
+ 
+     This function is referred by:
+-        - L{postreposetup_hook()}
++        - L{prereposetup_hook()}
+ 
+     @param timedhosts : A list of time intervals to reach different hosts
+     corresponding to the mirrors. The index of the list are hostnames.
+@@ -281,7 +281,7 @@ def write_timedhosts():
+     communicate with other functions.
+ 
+     This function is referred by:
+-        - L{postreposetup_hook()}
++        - L{prereposetup_hook()}
+ 
+     @param timedhosts : A list of time intervals to reach different hosts
+     corresponding to the mirrors. The index of the list are hostnames.
+@@ -359,7 +359,7 @@ class FastestMirror:
+             - L{FastestMirror._poll_mirrors()}
+ 
+         This function is referred by:
+-            - L{postreposetup_hook()}
++            - L{prereposetup_hook()}
+             - L{main()}
+ 
+         @rtype: List
