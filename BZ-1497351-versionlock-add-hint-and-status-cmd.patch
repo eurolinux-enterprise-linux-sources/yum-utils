@@ -1,0 +1,299 @@
+commit 691faec2bed8457edd19b8ad5587768bfbe4c653
+Author: Michal Domonkos <mdomonko@redhat.com>
+Date:   Mon May 28 16:49:10 2018 +0200
+
+    docs: fix versionlock
+    
+    Fixes the formatting and clarifies the "exclude" subcommand (inspired
+    by: https://illiterat.livejournal.com/8221.html).
+
+diff --git a/docs/yum-versionlock.1 b/docs/yum-versionlock.1
+index f7cd467..e14bbd5 100644
+--- a/docs/yum-versionlock.1
++++ b/docs/yum-versionlock.1
+@@ -16,22 +16,17 @@ This allows you to protect packages from being updated by newer versions.
+ The plugin provides a command "versionlock" which allows you to view and edit
+ the list of locked packages easily.
+ .br
+-.I  \fR yum versionlock add <package-wildcard>...
+-.PP
++.IP "\fByum versionlock add <package-wildcard>...\fR"
+ Add a versionlock for all of the packages in the rpmdb matching the given
+ wildcards.
+-.I  \fR yum versionlock exclude <package-wildcard>...
+-.PP
+-Add a exclude (within versionlock) for the latest versions of the
+-packages in the available repos. matching the given wildcards.
+-.I  \fR yum versionlock list
+-.PP
++.IP "\fByum versionlock exclude <package-wildcard>...\fR"
++Opposite; disallow currently available versions of the packages matching the
++given wildcards.
++.IP "\fByum versionlock list\fR"
+ List the current versionlock entries.
+-.I  \fR yum versionlock delete <entry-wildcard>...
+-.PP
++.IP "\fByum versionlock delete <entry-wildcard>...\fR"
+ Remove any matching versionlock entries.
+-.I  \fR yum versionlock clear
+-.PP
++.IP "\fByum versionlock clear\fR"
+ Remove all versionlock entries.
+ 
+ .SH FILES
+commit f761392dc6209ec17e718291c2319ea011923880
+Author: Michal Domonkos <mdomonko@redhat.com>
+Date:   Mon May 28 16:55:50 2018 +0200
+
+    versionlock: add hint and "status" subcommand. BZ 1497351
+    
+    It is nice to be reminded of any versionlocks in effect when running yum
+    transactions (esp. when doing a "yum update" and wondering why no
+    updates were found).  This commit adds the following message that is
+    printed in the excludes hook:
+    
+      Excluding X updates due to versionlock (use "yum versionlock status"
+      to show them)
+    
+    Since it would be too annoying to have all the excludes printed every
+    time, we only show their count (X) and provide the new "status"
+    subcommand that allows the user to list them if they are interested.
+    
+    Note that even this short message might be annoying as it appears on
+    every yum run, so we're also adding an option to disable it.
+
+diff --git a/docs/yum-versionlock.1 b/docs/yum-versionlock.1
+index e14bbd5..6190fea 100644
+--- a/docs/yum-versionlock.1
++++ b/docs/yum-versionlock.1
+@@ -24,6 +24,10 @@ Opposite; disallow currently available versions of the packages matching the
+ given wildcards.
+ .IP "\fByum versionlock list\fR"
+ List the current versionlock entries.
++.IP "\fByum versionlock status\fR"
++List any available updates that are currently blocked by versionlock.
++That is, for each entry in the lock list, print the newest package available
++in the repos unless it is the particular locked/excluded version.
+ .IP "\fByum versionlock delete <entry-wildcard>...\fR"
+ Remove any matching versionlock entries.
+ .IP "\fByum versionlock clear\fR"
+diff --git a/docs/yum-versionlock.conf.5 b/docs/yum-versionlock.conf.5
+index 78a6e49..b5be24e 100644
+--- a/docs/yum-versionlock.conf.5
++++ b/docs/yum-versionlock.conf.5
+@@ -26,7 +26,7 @@ character to the version.
+ .B yum-versionlock.conf(5)
+ utilizes configuration options in the form of
+ .IP OPTION=VALUE
+-.SH OPTION
++.SH OPTIONS
+ .IP follow_obsoletes
+ This option is a boolean flag which specifies if the versionlock plugin should
+ look at all the obsoletes, and see if any of the packages specified have an
+@@ -36,13 +36,20 @@ excluded. This option is off by default, as
+ will take some time to do the obsoletes processing, and for non-rename
+ obsoletes any issues you had which kept you at a specific version of a package
+ should be different with another package.
+-.SH OPTION
+ .IP locklist
+ This option is a string with points to the file which will have the versionlock
+ information in it. Note that the file
+ .B has
+ to exist (or the versionlock plugin will make yum exit). However it can be
+ empty.
++.IP show_hint
++This option is a boolean flag which specifies if the versionlock plugin should
++print a hint message whenever yum runs saying how many package updates
++available from the repos are being blocked due to versionlocks.
++This hint serves as a reminder that there are locks in effect and that you may
++want to reconsider them since newer versions of those packages have been
++released.
++Default is 1 (show the hint).
+ .SH AUTHOR
+ .RS
+ Chitlesh Goorah <chitlesh@fedoraproject.org>
+diff --git a/plugins/versionlock/versionlock.conf b/plugins/versionlock/versionlock.conf
+index 4e997da..42e05c9 100644
+--- a/plugins/versionlock/versionlock.conf
++++ b/plugins/versionlock/versionlock.conf
+@@ -1,5 +1,7 @@
+ [main]
+ enabled = 1
+ locklist = /etc/yum/pluginconf.d/versionlock.list
++#  Show a hint when any locked packages have updates available
++show_hint = 1
+ #  Uncomment this to lock out "upgrade via. obsoletes" etc. (slower)
+ # follow_obsoletes = 1
+diff --git a/plugins/versionlock/versionlock.py b/plugins/versionlock/versionlock.py
+index dfe4dd3..ad66855 100644
+--- a/plugins/versionlock/versionlock.py
++++ b/plugins/versionlock/versionlock.py
+@@ -42,6 +42,9 @@ _version_lock_excluder_B_nevr = set()
+ # _version_lock_excluder_pkgtup = set()
+ 
+ fileurl = None
++show_hint = True
++follow_obsoletes = False
++no_exclude = False
+ 
+ def _read_locklist():
+     locklist = []
+@@ -73,6 +76,68 @@ def _match(ent, patterns):
+                 return True
+     return False
+ 
++def _get_updates(base):
++    """Return packages that update or obsolete anything in our locklist.
++
++    Returns a dict of locked_name->X, where X is either a package object or a
++    list of them.  If it's the former, it's the updating package.  If it's the
++    latter, it's the obsoleting packages (since multiple packages may obsolete
++    the same name).
++    """
++
++    updates = {}
++
++    # Read in the locked versions
++    locks = {}
++    for ent in _read_locklist():
++        (n, v, r, e, a) = splitFilename(ent)
++        if e and e[0] == '!':
++            e = e[1:]
++        elif e == '':
++            e = '0'
++        locks.setdefault(n, []).append((e, v, r))
++
++    # Process regular updates
++    #
++    # We are using searchNames() + packagesNewestByName() here instead of just
++    # returnNewestByName() because the former way is much, much faster for big
++    # name lists.
++    #
++    # The problem with returnNewestByName() is that it may easily end up
++    # querying all the packages in pkgSack which is terribly slow (takes
++    # seconds); all it takes is a "-" in a package name and more than
++    # PATTERNS_MAX (8 by default) package names to trigger that.
++    #
++    # Since we know that we only ever deal with names, we can just go straight
++    # to searchNames() to avoid the full query.
++    pkgs = base.pkgSack.searchNames(locks.keys())
++    for p in packagesNewestByName(pkgs):
++        name = p.name
++        evr = p.returnEVR()
++        if (evr.epoch, evr.version, evr.release) in locks[name]:
++            # This one is either the locked or excluded version, skip
++            continue
++        updates[name] = p
++
++    # Process obsoletes
++    tups = base.up.getObsoletesTuples() if follow_obsoletes else []
++    for new, old in tups:
++        nname = new[0]
++        oname = old[0]
++        if oname not in locks:
++            # Not our package, skip
++            continue
++        if nname in locks and new[2:] in locks[nname]:
++            # This one is either the locked or excluded version, skip
++            continue
++        # Only record obsoletes for any given package name
++        if oname not in updates or not isinstance(updates[oname], list):
++            updates[oname] = []
++        p = base.getPackageObject(new)
++        updates[oname].append(p)
++
++    return updates
++
+ class VersionLockCommand:
+     created = 1247693044
+ 
+@@ -80,7 +145,7 @@ class VersionLockCommand:
+         return ["versionlock"]
+ 
+     def getUsage(self):
+-        return '[add|exclude|list|delete|clear] [PACKAGE-wildcard]'
++        return '[add|exclude|list|status|delete|clear] [PACKAGE-wildcard]'
+ 
+     def getSummary(self):
+         return 'Control package version locks.'
+@@ -93,7 +158,7 @@ class VersionLockCommand:
+         if extcmds:
+             if extcmds[0] not in ('add',
+                                   'exclude', 'add-!', 'add!', 'blacklist',
+-                                  'list', 'del', 'delete', 'clear'):
++                                  'list', 'status', 'del', 'delete', 'clear'):
+                 cmd = 'add'
+             else:
+                 cmd = {'del'       : 'delete',
+@@ -190,6 +255,19 @@ class VersionLockCommand:
+             os.rename(tmpfilename, filename)
+             return 0, ['versionlock deleted: ' + str(count)]
+ 
++        if cmd == 'status':
++            global no_exclude
++            no_exclude = True
++            updates = _get_updates(base)
++            for name, value in updates.iteritems():
++                if isinstance(value, list):
++                    value = set(p.envr + '.*' for p in value)
++                    for v in value:
++                        print '%s (replacing %s)' % (v, name)
++                    continue
++                print value.envr + '.*'
++            return 0, ['versionlock status done']
++
+         assert cmd == 'list'
+         for ent in _read_locklist():
+             print ent
+@@ -201,8 +279,12 @@ class VersionLockCommand:
+ 
+ def config_hook(conduit):
+     global fileurl
++    global follow_obsoletes
++    global show_hint
+ 
+     fileurl = conduit.confString('main', 'locklist')
++    follow_obsoletes = conduit.confBool('main', 'follow_obsoletes', default=False)
++    show_hint = conduit.confBool('main', 'show_hint', default=True)
+ 
+     if hasattr(conduit._base, 'registerCommand'):
+         conduit.registerCommand(VersionLockCommand())
+@@ -227,6 +309,9 @@ def _add_versionlock_blacklist(conduit):
+     ape(None, exid + str(3), 'exclude.marked')
+ 
+ def exclude_hook(conduit):
++    if no_exclude:
++        return
++
+     conduit.info(3, 'Reading version lock configuration')
+ 
+     if not fileurl:
+@@ -250,8 +335,7 @@ def exclude_hook(conduit):
+         _version_lock_excluder_n.add(n)
+         _version_lock_excluder_nevr.add("%s-%s:%s-%s" % (n, e, v, r))
+ 
+-    if (_version_lock_excluder_n and
+-        conduit.confBool('main', 'follow_obsoletes', default=False)):
++    if (_version_lock_excluder_n and follow_obsoletes):
+         #  If anything obsoletes something that we have versionlocked ... then
+         # remove all traces of that too.
+         for (pkgtup, instTup) in conduit._base.up.getObsoletesTuples():
+@@ -259,6 +343,18 @@ def exclude_hook(conduit):
+                 continue
+             _version_lock_excluder_n.add(pkgtup[0].lower())
+ 
++    total = len(_get_updates(conduit._base)) if show_hint else 0
++    if total:
++        if total > 1:
++            suffix = 's'
++            what = 'them'
++        else:
++            suffix = ''
++            what = 'it'
++        conduit.info(2, 'Excluding %d update%s due to versionlock '
++                        '(use "yum versionlock status" to show %s)'
++                        % (total, suffix, what))
++
+     if _version_lock_excluder_n:
+         _add_versionlock_whitelist(conduit)
+     if _version_lock_excluder_B_nevr:
