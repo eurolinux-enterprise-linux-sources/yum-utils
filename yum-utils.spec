@@ -12,7 +12,7 @@
 Summary: Utilities based around the yum package manager
 Name: yum-utils
 Version: 1.1.31
-Release: 50%{?dist}
+Release: 52%{?dist}
 License: GPLv2+
 Group: Development/Tools
 Source: http://yum.baseurl.org/download/yum-utils/%{name}-%{version}.tar.gz
@@ -78,6 +78,9 @@ Patch180: BZ-1497351-versionlock-add-hint-and-status-cmd.patch
 Patch181: BZ-1506205-repotrack-add-repofrompath-opt.patch
 Patch182: BZ-1600618-reposync-prevent-path-traversal.patch
 Patch183: BZ-1493489-yum-config-manager-fix-add-repo-2.patch
+
+#rhel-7.7
+Patch200: BZ-1476701-handle-md-fetch-errors.patch
 
 URL: http://yum.baseurl.org/download/yum-utils/
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -524,6 +527,9 @@ This plugin touches rpmdb files to work around overlayfs issues.
 %patch182 -p1
 %patch183 -p1
 
+#rhel-7.7
+%patch200 -p1
+
 %install
 rm -rf $RPM_BUILD_ROOT
 make DESTDIR=$RPM_BUILD_ROOT install
@@ -854,6 +860,14 @@ fi
 %{_mandir}/man1/yum-ovl.1.*
 
 %changelog
+* Fri Apr 26 2019 Michal Domonkos <mdomonko@redhat.com> - 1.1.31-52
+- reposync: fix up the previous patch
+- Related: bug#1476701
+
+* Wed Mar 27 2019 Michal Domonkos <mdomonko@redhat.com> - 1.1.31-51
+- reposync: repotrack: handle metadata fetch exceptions
+- Related: bug#1476701
+
 * Fri Aug 24 2018 Michal Domonkos <mdomonko@redhat.com> - 1.1.31-50
 - yum-config-manager: additional fixes for --add-repo
 - Related: bug#1493489
