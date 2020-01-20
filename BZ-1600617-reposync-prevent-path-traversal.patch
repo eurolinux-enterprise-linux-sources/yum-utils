@@ -1,0 +1,119 @@
+diff -up yum-utils-1.1.31/docs/reposync.1.orig yum-utils-1.1.31/docs/reposync.1
+--- yum-utils-1.1.31/docs/reposync.1.orig	2018-07-20 11:01:16.789747160 +0200
++++ yum-utils-1.1.31/docs/reposync.1	2018-07-20 11:01:21.765700655 +0200
+@@ -47,6 +47,16 @@ Download all the non-default metadata.
+ Download only newest packages per-repo.
+ .IP "\fB\-q, \-\-quiet\fP"
+ Output as little information as possible.
++.IP "\fB\-\-allow-path-traversal\fP"
++Allow packages stored outside their repo directory to be synced.
++These are packages that are referenced in metadata by using absolute paths or
++up-level ".." symbols, and are normally skipped by \fBreposync\fR for security
++reasons.
++
++\fBCAUTION:\fR Using this option has potential security implications since, by
++providing malicious repodata, an attacker could make \fBreposync\fR write to
++arbitrary locations on the file system that are accessible by the user running
++it.
+ .SH "EXAMPLES"
+ .IP "Sync all packages from the 'updates' repo to the current directory:"
+ \fB reposync \-\-repoid=updates\fP
+diff -up yum-utils-1.1.31/reposync.py.orig yum-utils-1.1.31/reposync.py
+--- yum-utils-1.1.31/reposync.py.orig	2018-07-20 11:01:16.752747506 +0200
++++ yum-utils-1.1.31/reposync.py	2018-07-20 11:01:54.717392693 +0200
+@@ -84,6 +84,12 @@ def localpkgs(directory):
+             cache[name] = { 'path': fn, 'size': st.st_size, 'device': st.st_dev }
+     return cache
+ 
++def is_subpath(path, root):
++    root = os.path.realpath(root)
++    path = os.path.realpath(os.path.join(root, path))
++    # join() is used below to ensure root ends with a slash
++    return path.startswith(os.path.join(root, ''))
++
+ def parseArgs():
+     usage = """
+     Reposync is used to synchronize a remote yum repository to a local 
+@@ -126,6 +132,10 @@ def parseArgs():
+     parser.add_option("","--download-metadata", dest="downloadmd", 
+         default=False, action="store_true", 
+         help="download all the non-default metadata")
++    parser.add_option("", "--allow-path-traversal", default=False,
++        action="store_true",
++        help="Allow packages stored outside their repo directory to be synced "
++             "(UNSAFE, USE WITH CAUTION!)")
+     (opts, args) = parser.parse_args()
+     return (opts, args)
+ 
+@@ -226,13 +236,36 @@ def main():
+         else:
+             local_repo_path = opts.destdir + '/' + repo.id
+ 
++        # Ensure we don't traverse out of local_repo_path by dropping any
++        # packages whose remote_path is absolute or contains up-level
++        # references (unless explicitly allowed).
++        # See RHBZ#1600221 for details.
++        if not opts.allow_path_traversal:
++            newlist = []
++            skipped = False
++            for pkg in download_list:
++                if is_subpath(pkg.remote_path, local_repo_path):
++                    newlist.append(pkg)
++                    continue
++                my.logger.warning(
++                    'WARNING: skipping package %s: remote path "%s" not '
++                    'within repodir, unsafe to mirror locally'
++                    % (pkg, pkg.remote_path)
++                )
++                skipped = True
++            if skipped:
++                my.logger.info(
++                    'You can enable unsafe remote paths by using '
++                    '--allow-path-traversal (see reposync(1) for details)'
++                )
++            download_list = newlist
++
+         if opts.delete and os.path.exists(local_repo_path):
+             current_pkgs = localpkgs(local_repo_path)
+ 
+             download_set = {}
+             for pkg in download_list:
+-                remote = pkg.returnSimple('relativepath')
+-                rpmname = os.path.basename(remote)
++                rpmname = os.path.basename(pkg.remote_path)
+                 download_set[rpmname] = 1
+ 
+             for pkg in current_pkgs:
+@@ -280,8 +313,7 @@ def main():
+         local_size  = 0
+         if not opts.urls:
+             for pkg in download_list:
+-                remote = pkg.returnSimple('relativepath')
+-                local = local_repo_path + '/' + remote
++                local = os.path.join(local_repo_path, pkg.remote_path)
+                 sz = int(pkg.returnSimple('packagesize'))
+                 if os.path.exists(local) and os.path.getsize(local) == sz:
+                     continue
+@@ -293,10 +325,9 @@ def main():
+         download_list.sort(sortPkgObj)
+         if opts.urls:
+             for pkg in download_list:
+-                remote = pkg.returnSimple('relativepath')
+-                local = os.path.join(local_repo_path, remote)
++                local = os.path.join(local_repo_path, pkg.remote_path)
+                 if not (os.path.exists(local) and my.verifyPkg(local, pkg, False)):
+-                    print urljoin(pkg.repo.urls[0], pkg.relativepath)
++                    print urljoin(pkg.repo.urls[0], pkg.remote_path)
+             continue
+ 
+         # create dest dir
+@@ -305,8 +336,7 @@ def main():
+ 
+         # set localpaths
+         for pkg in download_list:
+-            rpmfn = pkg.remote_path
+-            pkg.localpath = os.path.join(local_repo_path, rpmfn)
++            pkg.localpath = os.path.join(local_repo_path, pkg.remote_path)
+             pkg.repo.copy_local = True
+             pkg.repo.cache = 0
+             localdir = os.path.dirname(pkg.localpath)

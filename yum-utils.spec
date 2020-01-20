@@ -12,7 +12,7 @@
 Summary: Utilities based around the yum package manager
 Name: yum-utils
 Version: 1.1.31
-Release: 45%{?dist}
+Release: 46%{?dist}
 License: GPLv2+
 Group: Development/Tools
 Source: http://yum.baseurl.org/download/yum-utils/%{name}-%{version}.tar.gz
@@ -72,6 +72,7 @@ Patch165: BZ-1437636-yum-builddep-add-define-opt.patch
 Patch166: BZ-1349433-verifytree-handle-no-core-group.patch
 Patch167: BZ-1333353-verifytree-fix-handling-no-comps.patch
 Patch168: BZ-1127783-transaction-actions-fix-file-globs.patch
+Patch169: BZ-1600617-reposync-prevent-path-traversal.patch
 
 URL: http://yum.baseurl.org/download/yum-utils/
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -511,6 +512,7 @@ This plugin touches rpmdb files to work around overlayfs issues.
 %patch166 -p1
 %patch167 -p1
 %patch168 -p1
+%patch169 -p1
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -842,6 +844,10 @@ fi
 %{_mandir}/man1/yum-ovl.1.*
 
 %changelog
+* Fri Jul 20 2018 Michal Domonkos <mdomonko@redhat.com> - 1.1.31-46
+- reposync: prevent path traversal.
+- Resolves: bug#1600617
+
 * Tue Nov 21 2017 Valentina Mukhamedzhanova <vmukhame@redhat.com> - 1.1.31-45
 - Fix file globbing in transaction-actions.
 - Related: bug#1470647
